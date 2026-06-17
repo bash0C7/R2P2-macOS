@@ -9,6 +9,7 @@ module R2P2MacOSBuild
     conf.cc.defines << "PICORB_ALLOC_ALIGN=8"
     conf.cc.defines << "PICORB_ALLOC_ESTALLOC"
     conf.cc.defines << "PICORB_PLATFORM_POSIX"
+    conf.cc.defines << "PICORB_PLATFORM_DARWIN"  # macOS host; build.darwin? selects picoruby-ble ports/darwin
     conf.cc.defines << "MRB_INT64"
     conf.cc.defines << "MRB_NO_BOXING"
     conf.cc.defines << "MRB_UTF8_STRING"
