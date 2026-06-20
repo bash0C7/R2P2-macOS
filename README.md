@@ -1,77 +1,90 @@
 # R2P2-macOS
 
-An environment for building and running standard PicoRuby / R2P2 on a macOS host.
+A staging harness for building and running PicoRuby with Darwin-native
+capabilities (CoreBluetooth, future Apple frameworks) on a macOS host.
 
 ## What this is
 
-R2P2-macOS is the macOS target among the repositories that port PicoRuby's
-shell and runtime (the picoruby-r2p2 gem) to different platforms. Ports are
-split by operating system, so this is the macOS one; an iOS target would be
-R2P2-iOS. It mirrors how R2P2-ESP32 targets the ESP-IDF chip family, except the
-axis here is the OS. The mruby build is named host and its platform is posix,
-following the upstream convention.
+PicoRuby itself builds on macOS as a POSIX host — for that alone, you do not
+need this repository. R2P2-macOS exists because Darwin-native mrbgems (today,
+`picoruby-ble` with its CoreBluetooth port) need:
 
-This repository is a build-and-run harness. It does not contain port source
-code. PicoRuby itself is fetched from upstream at build time.
+1. a build config that opts the gem in on Darwin, separate from upstream's
+   `build_config/default.rb`,
+2. macOS-specific prerequisites pinned (Xcode CLT, Homebrew openssl@3,
+   Swift 6.3+),
+3. a venue where the per-host build config lives until the Darwin port and
+   a matching `build_config/*-darwin.rb` are accepted upstream.
 
-## Design
+Once that lands in `picoruby/picoruby`, this repository's job ends. R2P2-ESP32
+is the comparable harness on the ESP-IDF axis; that one is permanent because
+ESP-IDF is a substantial external build system. macOS has no such external
+system — Darwin-native code lives inside the picoruby tree as mrbgems with
+their own `mrbgem.rake` (self-compiles Swift, links frameworks, etc.). This
+harness is a thin wrapper, not a long-lived host port.
 
-- PicoRuby is fetched from GitHub upstream (picoruby/picoruby) by `rake setup`
-  into vendor/picoruby. No submodule, no sibling checkout. vendor/picoruby is
-  gitignored.
-- Build output is redirected to ./build via MRUBY_BUILD_DIR, so the fetched
-  picoruby source stays pristine.
-- Mac-native capabilities (BLE/CoreBluetooth and others) are added as mrbgems
-  instead of by modifying upstream, which also keeps the capability surface
-  small.
-
-## Requirements
-
-- macOS on Apple Silicon
-- rbenv with Ruby 4.0.5 (pinned in .ruby-version; the upstream build.rb requires
-  Ruby >= 2.7)
-- Homebrew openssl@3 (`brew install openssl@3`; the networking gembox links
-  ssl/crypto)
-- A Swift 6.3+ toolchain, for the BLE build only (it compiles a CoreBluetooth
-  backend)
-- git
-
-## Usage
+## Setup
 
 ```
-rake setup        fetch picoruby/picoruby into vendor/picoruby (PICORUBY_REF selects a ref, default master)
-rake build        build standard r2p2 + picoruby into ./build/host
-rake run          start the r2p2 shell (rake run APP=path/to.rb runs a Ruby file)
-rake build:ble    build picoruby-ble with the Darwin/CoreBluetooth port into ./build-ble
-rake run:ble APP=path/to.rb   run a Ruby file on the BLE runtime
-rake clean        remove build outputs
-rake clobber      also remove vendor/picoruby
+brew install openssl@3            # networking gembox links ssl/crypto
+xcode-select --install            # clang + Swift toolchain
+# Ruby — any ambient install (rbenv / asdf / system) >= 2.7
 ```
 
-To pin a release tag for reproducibility: `PICORUBY_REF=3.4.2 rake setup`.
+```
+rake check                        # verifies the above
+```
 
-To build and verify a port branch from a fork instead of upstream:
-`PICORUBY_REPO=<fork url> PICORUBY_REF=<branch> rake refresh build:ble`.
+## Choosing what to build
+
+The picoruby tree to build is selectable by env:
+
+```
+PICORUBY_REPO   default: https://github.com/picoruby/picoruby.git
+PICORUBY_REF    default: master
+MRUBY_CONFIG    optional; if unset, the picoruby tree's own default.rb is used
+```
+
+### Standard build (no Darwin-native gems)
+
+```
+rake build                        # ./build/host/bin/{r2p2,picoruby}
+rake run                          # r2p2 shell
+rake run APP=path/to.rb           # run a Ruby file on the picoruby runner
+```
+
+### Darwin-native build (picoruby-ble + CoreBluetooth port)
+
+Point `PICORUBY_REPO`/`PICORUBY_REF` at a picoruby tree that carries the Darwin
+port, and select the bundled build config:
+
+```
+PICORUBY_REPO=https://github.com/bash0C7/picoruby.git \
+PICORUBY_REF=picoruby-ble-darwin-port \
+MRUBY_CONFIG=$(pwd)/build_config/r2p2-picoruby-darwin.rb \
+rake setup build
+```
+
+`build_config/r2p2-picoruby-darwin.rb` mirrors picoruby's per-target naming
+convention (parallel to `build_config/r2p2-picoruby-pico2.rb` upstream): a
+Darwin host build that opts the `picoruby-ble` gem in.
+
+To rebuild after editing the picoruby tree (e.g. switching branches):
+
+```
+PICORUBY_REPO=... PICORUBY_REF=... rake refresh build
+```
 
 ## Layout
 
 ```
 R2P2-macOS/
-  Rakefile            setup (fetch) / build / build:ble / run / clean / clobber
+  Rakefile                          setup / check / build / run / clean / clobber
   build_config/
-    common.rb         VM defines shared by every runtime
-    default.rb        standard host (posix) build: r2p2 + picoruby runner + networking
-    ble.rb            BLE host build: adds picoruby-ble with the Darwin port
-  test/ble-darwin/    verification for the BLE Darwin port
-  docs/               BLE Darwin port design notes and the device E2E procedure
-  vendor/picoruby/    fetched from upstream by rake setup (gitignored)
-  build/, build-ble/  build output, MRUBY_BUILD_DIR (gitignored)
+    r2p2-picoruby-darwin.rb         Darwin host + picoruby-ble + picotest
+  vendor/picoruby/                  fetched by rake setup (gitignored)
+  build/                            build output, MRUBY_BUILD_DIR (gitignored)
 ```
 
-## BLE / CoreBluetooth
-
-`rake build:ble` links picoruby-ble together with its Apple/Darwin port, which
-drives CoreBluetooth and synthesizes the byte events the gem's decoder expects.
-The port source lives in the picoruby tree (proposed upstream), not here; this
-repository builds and verifies it. See docs/ for the design and the device E2E
-procedure, and test/ble-darwin/ for the runnable checks.
+Tests and design docs for the Darwin port live with the port itself, under
+`mrbgems/picoruby-ble/ports/darwin/` in the picoruby tree.

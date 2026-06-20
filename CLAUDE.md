@@ -1,11 +1,24 @@
 ## このリポジトリ
 
-`R2P2-macOS` ＝ 標準 PicoRuby / R2P2 を macOS host で build/run する harness。依存する picoruby は
-**GitHub upstream `picoruby/picoruby` を `rake setup` で `vendor/picoruby` に取得**する
-（submodule 不使用・sibling fork 非依存）。ビルド出力は `MRUBY_BUILD_DIR=./build` に隔離し、
-取得した picoruby source は pristine に保つ。harness なので port source は持たない。Mac ネイティブ能力は
-upstream を汚さず `mrbgems/` として足す方針。BLE/CoreBluetooth port は picoruby tree 側に住み（upstream 提案中）、
-本リポジトリは `rake build:ble` で build し `test/ble-darwin/` で検証する役割。
+`R2P2-macOS` ＝ Darwin native (CoreBluetooth はじめ Apple framework) を mrbgem として統合した
+picoruby を build / run するための staging 用 harness。具体的な責務は 3 つ:
+
+1. `rake check` で macOS の build 前提 (Xcode CLT / brew openssl@3 / Swift) を verify
+2. Darwin-targeted build config (`build_config/r2p2-picoruby-darwin.rb`) を保持。picoruby 命名規約
+   (`r2p2-<runtime>-<target>.rb`、pico2 等と同列) に沿う
+3. 薄い rake wrapper として `vendor/picoruby/` への fetch + `MRUBY_BUILD_DIR=./build` redirect で
+   fetched source を pristine に保ちながら build / run
+
+依存する picoruby は `PICORUBY_REPO` / `PICORUBY_REF` で切替可能 (default: upstream
+`picoruby/picoruby` master)。Darwin port を含む build をするには Darwin port を抱える picoruby
+tree (例: `bash0C7/picoruby` の `picoruby-ble-darwin-port` branch) を指して
+`MRUBY_CONFIG=$(pwd)/build_config/r2p2-picoruby-darwin.rb rake build`。
+
+Darwin port の実装 (`mrbgems/picoruby-ble/ports/darwin/`) と verification scaffold
+(`mrbgems/picoruby-ble/ports/darwin/test/`, `README.md`) は picoruby tree 側に住む。本 repo は
+build wrapper + 前提 check + 暫定 build config の格納場所。R2P2-ESP32 が ESP-IDF という別建て
+build system を picoruby に接続する harness として恒久的に必要なのとは対照的に、こちらは
+upstream merge までの transitional。
 
 ## 行動
 
