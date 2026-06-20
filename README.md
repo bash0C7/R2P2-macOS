@@ -98,12 +98,30 @@ VM), and includes `mruby-posix`, `core`, `stdlib` gemboxes — enough for
 common scripts. For networking, fonts, native extensions, or anything else,
 copy the build config and add the gems you need.
 
-A hello-world example:
+A realistic example lives at [`examples/ls.rb`](examples/ls.rb): an
+`ls`-like listing of the current directory exercising `Dir.entries`,
+`File.directory?` / `File.file?` / `File.symlink?` / `File.size` /
+`File.expand_path`, method definitions, `while`/`if-elsif-else`, sprintf,
+Array `sort`/`reject`, and inline `rescue` — i.e. the kind of patterns a
+typical script needs.
 
 ```
-echo 'puts "Hello from picoruby single binary"' > /tmp/hello.rb
-rake single APP=/tmp/hello.rb
-./build/host/bin/hello                # Hello from picoruby single binary
+rake single APP=examples/ls.rb
+./build/host/bin/ls                   # one self-contained 1.2 MB binary
+```
+
+It prints something like:
+
+```
+Listing: /Users/you/your-dir
+
+d        -  .git/
+-     410B  .gitignore
+-     4.5K  README.md
+d        -  build/
+...
+
+5 files (44.4K), 9 directories
 ```
 
 ## Layout
@@ -115,6 +133,8 @@ R2P2-macOS/
     r2p2-picoruby-darwin.rb         Darwin host base (used by Standard build)
     r2p2-picoruby-darwin-ble.rb     base + picoruby-ble opt-in (used by BLE Example)
     r2p2-picoruby-darwin-single.rb  base minus REPL/shell bins (used by rake single)
+  examples/
+    ls.rb                           current-dir listing, demo for rake single
   vendor/picoruby/                  fetched by rake setup (gitignored)
   build/                            build output, MRUBY_BUILD_DIR (gitignored)
   tmp/single/                       throwaway bin gem generated per rake single (gitignored)
